@@ -1,0 +1,643 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="icon" href="data:,">
+<title>Drupal PHPStan Baseline</title>
+<style>
+:root {
+  color-scheme: light;
+  --surface-0: #f4f3f0;
+  --surface-1: #fcfcfb;
+  --border: #e2e1dc;
+  --grid: #ebeae6;
+  --text-primary: #0b0b0b;
+  --text-secondary: #52514e;
+  --text-muted: #7a7974;
+  --series-1: #2a78d6;
+  --up: #eb6834;
+  --down: #2a78d6;
+  --tag: #6250d6;
+  --band-a: rgba(0,0,0,0.035);
+  --band-b: rgba(0,0,0,0);
+  --link: #1c5cab;
+  --cat-1: #2a78d6; --cat-2: #eb6834; --cat-3: #1baf7a; --cat-4: #eda100; --cat-5: #e87ba4; --cat-6: #008300;
+  --other: #c4c3bd;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --surface-0: #121211;
+    --surface-1: #1a1a19;
+    --border: #2e2e2c;
+    --grid: #262624;
+    --text-primary: #f0efec;
+    --text-secondary: #c3c2b7;
+    --text-muted: #8f8e86;
+    --series-1: #3987e5;
+    --up: #d95926;
+    --down: #3987e5;
+    --tag: #9085e9;
+    --band-a: rgba(255,255,255,0.045);
+    --band-b: rgba(255,255,255,0);
+    --link: #86b6ef;
+    --cat-1: #3987e5; --cat-2: #d95926; --cat-3: #199e70; --cat-4: #c98500; --cat-5: #d55181; --cat-6: #0ca30c;
+    --other: #4a4a46;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --surface-0: #121211;
+  --surface-1: #1a1a19;
+  --border: #2e2e2c;
+  --grid: #262624;
+  --text-primary: #f0efec;
+  --text-secondary: #c3c2b7;
+  --text-muted: #8f8e86;
+  --series-1: #3987e5;
+  --up: #d95926;
+  --down: #3987e5;
+  --tag: #9085e9;
+  --band-a: rgba(255,255,255,0.045);
+  --band-b: rgba(255,255,255,0);
+  --link: #86b6ef;
+  --cat-1: #3987e5; --cat-2: #d95926; --cat-3: #199e70; --cat-4: #c98500; --cat-5: #d55181; --cat-6: #0ca30c;
+  --other: #4a4a46;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0; background: var(--surface-0); color: var(--text-primary);
+  font: 14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+main { max-width: 1400px; margin: 0 auto; padding: 20px 16px 48px; }
+h1 { font-size: 20px; margin: 0 0 4px; font-weight: 650; }
+.sub { color: var(--text-secondary); margin: 0 0 16px; }
+.tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; margin-bottom: 16px; }
+.tile { background: var(--surface-1); border: 1px solid var(--border); border-radius: 8px; padding: 10px 14px; }
+.tile .k { color: var(--text-secondary); font-size: 12px; }
+.tile .v { font-size: 22px; font-weight: 650; font-variant-numeric: tabular-nums; }
+.tile .n { color: var(--text-muted); font-size: 12px; }
+.controls { display: flex; flex-wrap: wrap; gap: 8px 18px; align-items: center; margin: 0 0 10px; color: var(--text-secondary); }
+.controls label { display: inline-flex; gap: 6px; align-items: center; }
+.controls select, .controls input[type=number] {
+  font: inherit; color: var(--text-primary); background: var(--surface-1);
+  border: 1px solid var(--border); border-radius: 6px; padding: 3px 6px;
+}
+.controls input[type=number] { width: 80px; }
+.seg { display: inline-flex; border: 1px solid var(--border); border-radius: 6px; overflow: hidden; }
+.seg button { font: inherit; border: 0; background: var(--surface-1); color: var(--text-secondary); padding: 4px 10px; cursor: pointer; }
+.seg button[aria-pressed=true] { background: var(--series-1); color: #fff; }
+.card { background: var(--surface-1); border: 1px solid var(--border); border-radius: 8px; padding: 12px; margin-bottom: 16px; }
+.card h2 { font-size: 14px; margin: 0 0 4px; font-weight: 600; }
+.card p.hint { margin: 0 0 8px; color: var(--text-muted); font-size: 12px; }
+#main { height: 480px; }
+#main, #delta { position: relative; }
+.zoomhint { position: absolute; inset: 0; z-index: 2; display: flex; align-items: center; justify-content: center;
+  background: rgba(0,0,0,.45); color: #fff; font-size: 18px; pointer-events: none; opacity: 0; transition: opacity .3s; border-radius: 4px; }
+.zoomhint.show { opacity: 1; transition-duration: .1s; }
+.detail { border-top: 1px solid var(--border); margin-top: 8px; padding: 10px 2px 2px; position: relative; }
+.detail .meta { color: var(--text-secondary); font-size: 12px; }
+.detail .big { font-size: 18px; font-weight: 650; font-variant-numeric: tabular-nums; }
+.detail .subj { margin: 4px 0 6px; }
+.detail .chips { display: flex; flex-wrap: wrap; gap: 4px 0; }
+.detail .chips b { font-size: 11px; font-weight: 600; color: var(--text-muted); margin: 2px 6px 0 0; }
+.detail .chip { display: inline-block; font-size: 11px; color: var(--text-secondary); border: 1px solid var(--border); border-radius: 4px; padding: 0 5px; margin: 1px 3px 1px 0; }
+.detail .nav { position: absolute; top: 6px; right: 0; display: flex; align-items: center; gap: 4px; font-size: 12px; color: var(--text-muted); }
+.detail .nav button { font: inherit; font-size: 13px; color: var(--text-secondary); background: var(--surface-1); border: 1px solid var(--border); border-radius: 6px; padding: 2px 8px; cursor: pointer; }
+.detail .nav button:disabled { opacity: .4; cursor: default; }
+.detail .nav .pos { margin: 0 4px; font-variant-numeric: tabular-nums; }
+.detail .nav .close { border: 0; background: none; font-size: 18px; line-height: 1; color: var(--text-muted); padding: 2px 6px; }
+.detail .meta:first-of-type { padding-right: 260px; }
+@media (max-width: 640px) { .detail .nav { position: static; justify-content: flex-end; margin-bottom: 4px; } .detail .meta:first-of-type { padding-right: 0; } }
+#delta { height: 220px; }
+.legend { display: flex; flex-wrap: wrap; gap: 14px; font-size: 12px; color: var(--text-secondary); margin: 2px 0 6px; }
+.legend i { display: inline-block; width: 14px; height: 3px; vertical-align: middle; margin-right: 5px; border-radius: 2px; }
+.legend i.sw { width: 9px; height: 9px; border-radius: 2px; }
+.legend i.dot { width: 9px; height: 9px; border-radius: 50%; }
+.legend i.dash { height: 0; border-top: 2px dashed var(--tag); }
+table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--border); vertical-align: top; }
+th { color: var(--text-secondary); font-weight: 600; font-size: 12px; cursor: pointer; user-select: none; white-space: nowrap; }
+td.num { text-align: right; white-space: nowrap; }
+td.up { color: var(--text-primary); }
+td .chip { display: inline-block; font-size: 11px; color: var(--text-secondary); border: 1px solid var(--border); border-radius: 4px; padding: 0 5px; margin: 1px 3px 1px 0; white-space: nowrap; }
+.mark { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; }
+a { color: var(--link); }
+.tablewrap { overflow-x: auto; }
+footer { color: var(--text-muted); font-size: 12px; }
+.split { display: flex; gap: 2px; height: 14px; margin: 4px 0 8px; }
+.split span { border-radius: 4px; min-width: 2px; }
+.sw { display: inline-block; width: 9px; height: 9px; border-radius: 2px; margin-right: 6px; vertical-align: middle; }
+.meter { height: 8px; background: var(--grid); border-radius: 4px; overflow: hidden; }
+.meter span { display: block; height: 100%; background: var(--series-1); border-radius: 4px; }
+.more { font: inherit; color: var(--link); background: none; border: 0; padding: 0; cursor: pointer; text-decoration: underline; }
+#idTbl td { padding: 4px 8px; }
+#idTbl tr.off td { color: var(--text-muted); }
+#idTbl tr.off .meter span { opacity: 0; }
+#idTbl input { margin: 0; }
+@media (max-width: 640px) { #main { height: 360px; } }
+</style>
+</head>
+<body>
+<main>
+  <h1>Drupal core PHPStan baseline</h1>
+  <p class="sub">Ignored errors in the baseline on the development branch (first-parent history of <code>main</code>, back through 12.x/11.x/10.x dev branches).</p>
+
+  <div class="tiles" id="tiles"></div>
+
+  <div class="controls">
+    <div class="seg" role="group" aria-label="Scale">
+      <button data-scale="linear" aria-pressed="true">Linear</button>
+      <button data-scale="log" aria-pressed="false">Log</button>
+    </div>
+    <label>Flag changes ≥ <input type="number" id="threshold" min="1" step="10" value="100"></label>
+    <label>Range
+      <select id="range">
+        <option value="all">All time</option>
+        <option value="2">Last 2 years</option>
+        <option value="1">Last 12 months</option>
+      </select>
+    </label>
+    <div class="seg" role="group" aria-label="Theme">
+      <button data-theme-btn="auto" aria-pressed="true">Auto</button>
+      <button data-theme-btn="light" aria-pressed="false">Light</button>
+      <button data-theme-btn="dark" aria-pressed="false">Dark</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Violations in the baseline</h2>
+    <div class="legend">
+      <span><i style="background:var(--series-1)"></i>Baseline size</span>
+      <span><i class="dot" style="background:var(--up)"></i>Large increase</span>
+      <span><i class="dot" style="background:var(--down)"></i>Large decrease</span>
+      <span><i class="dash"></i>Minor release tagged (x.y.0)</span>
+      <span>Shaded bands: dev branch at the time · Click the chart for details</span>
+    </div>
+    <div id="main"></div>
+    <div id="detail" class="detail" hidden></div>
+  </div>
+
+  <div class="card">
+    <h2>Change per commit</h2>
+    <p class="hint">Each bar is one commit that touched the baseline. Axis clipped at ±1,000; larger bars are labelled. Zoom with the slider under the top chart or <span class="zoomKey">Ctrl</span> + scroll on either chart; both stay in sync.</p>
+    <div id="delta"></div>
+  </div>
+
+  <div class="card">
+    <h2>Violations by identifier at HEAD <span id="idCount" style="color:var(--text-muted);font-weight:400"></span></h2>
+    <p class="hint">Untick an identifier to leave it out; shares are recalculated over what is left. The bar shows the six largest overall; the rest are grouped as Other.</p>
+    <div class="controls" style="margin-bottom:8px">
+      <label>Filter <input type="search" id="idFilter" placeholder="e.g. drupal." style="font:inherit;color:var(--text-primary);background:var(--surface-1);border:1px solid var(--border);border-radius:6px;padding:3px 6px;width:180px"></label>
+      <div class="seg" role="group" aria-label="Visibility">
+        <button id="idShowAll">Show all</button>
+        <button id="idHideMatches">Hide matching</button>
+        <button id="idOnlyMatches">Only matching</button>
+      </div>
+    </div>
+    <div id="idSplit" class="split" role="img"></div>
+    <div id="idLegend" class="legend"></div>
+    <div class="tablewrap"><table id="idTbl">
+      <thead><tr><th style="width:28px;cursor:default"></th><th style="cursor:default">Identifier</th><th style="cursor:default;width:40%"></th><th class="num" style="cursor:default">Violations</th><th class="num" style="cursor:default">Share</th></tr></thead>
+      <tbody></tbody>
+    </table></div>
+    <p style="margin:8px 0 0"><button id="idMore" class="more"></button></p>
+  </div>
+
+  <div class="card">
+    <h2>Largest changes <span id="tableCount" style="color:var(--text-muted);font-weight:400"></span></h2>
+    <p class="hint">Commits whose change is at or above the threshold, within the zoomed range. Breakdown shows the PHPStan identifiers (or message pattern, pre-2024) and core areas that moved most.</p>
+    <div class="tablewrap"><table id="tbl">
+      <thead><tr>
+        <th data-sort="date">Date</th>
+        <th data-sort="delta" class="num">Change</th>
+        <th data-sort="total" class="num">After</th>
+        <th>Branch</th>
+        <th>Issue / commit</th>
+        <th>Breakdown</th>
+      </tr></thead>
+      <tbody></tbody>
+    </table></div>
+    <p style="margin:8px 0 0"><button id="tblMore" class="more"></button></p>
+  </div>
+
+  <footer id="footer"></footer>
+</main>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/echarts/5.5.0/echarts.min.js"></script>
+<script src="data.js"></script>
+<script>
+(() => {
+  const D = window.BASELINE_DATA;
+  // Branch never goes backwards: a few main commits in 2023 still reported 10.2.0-dev
+  // after main had moved to 11.0-dev, so keep the newest branch seen so far.
+  const verNum = v => { const m = v && v.match(/^(\d+)\.(\d+)/); return m ? +m[1] * 1000 + +m[2] : -1; };
+  let maxVer = -1, curBranch = '?';
+  const commits = D.commits.map(c => {
+    const n = verNum(c.version);
+    if (n >= maxVer) { maxVer = n; curBranch = branchOf(c.version); }
+    return { ...c, t: Date.parse(c.date), branch: curBranch };
+  });
+  const fmt = n => n.toLocaleString('en');
+  const sgn = n => (n > 0 ? '+' : n < 0 ? '−' : '') + fmt(Math.abs(n));
+  const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[ch]));
+  const day = t => new Date(t).toISOString().slice(0, 10);
+  const issueUrl = c => c.issue ? `https://www.drupal.org/i/${c.issue}` : null;
+  const commitUrl = c => `https://git.drupalcode.org/project/drupal/-/commit/${c.hash}`;
+
+  function branchOf(v) {
+    if (!v) return '?';
+    let m = v.match(/^(\d+)\.(\d+)\.0-dev$/);
+    if (m) return +m[1] >= 11 ? `${m[1]}.x` : `${m[1]}.${m[2]}.x`;
+    m = v.match(/^(\d+)\.(\d+)-dev$/);
+    if (m) return +m[1] >= 12 ? 'main' : `${m[1]}.x`;
+    return v;
+  }
+
+  // Contiguous periods of branch / level for bands.
+  function periods(key) {
+    const out = [];
+    for (const c of commits) {
+      const k = c[key];
+      if (!out.length || out[out.length - 1].k !== k) out.push({ k, start: c.t, version: c.version });
+      out[out.length - 1].end = c.t;
+    }
+    out.forEach((p, i) => { p.end = i < out.length - 1 ? out[i + 1].start : Date.parse(D.generated); });
+    return out;
+  }
+  const branchPeriods = periods('branch');
+  // Group minor tags released within a few days of each other (e.g. 10.4.0 + 11.1.0).
+  const tagGroups = [];
+  for (const t of D.tags) {
+    const at = Date.parse(t.date);
+    if (at < commits[0].t) continue;
+    const g = tagGroups[tagGroups.length - 1];
+    if (g && at - g.t < 7 * 864e5) g.names.push(t.tag); else tagGroups.push({ t: at, names: [t.tag] });
+  }
+  const levelChanges = commits.filter((c, i) => i > 0 && c.level !== commits[i - 1].level);
+  const formatChange = commits.find((c, i) => i > 0 && c.format !== commits[i - 1].format);
+
+  const state = { selected: null, scale: 'linear', threshold: 100, zoom: [null, null], sort: { key: 'delta', dir: -1 } };
+
+  const DELTA_CLIP = 1000;
+  const css = name => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+
+  // Tiles
+  function renderTiles() {
+    const last = commits[commits.length - 1];
+    const peak = commits.reduce((a, b) => (b.total > a.total ? b : a));
+    const yearAgo = Date.parse(D.generated) - 365 * 864e5;
+    const prevYear = [...commits].reverse().find(c => c.t <= yearAgo);
+    const tiles = [
+      ['Violations now', fmt(last.total), `${last.branch} · level ${last.level}`],
+      ['Peak', fmt(peak.total), day(peak.t)],
+      ['Change, last 12 months', prevYear ? sgn(last.total - prevYear.total) : '–', prevYear ? `from ${fmt(prevYear.total)}` : ''],
+      ['Commits touching baseline', fmt(commits.length), `since ${day(commits[0].t)}`],
+    ];
+    document.getElementById('tiles').innerHTML = tiles.map(([k, v, n]) =>
+      `<div class="tile"><div class="k">${k}</div><div class="v">${v}</div><div class="n">${esc(n)}</div></div>`).join('');
+  }
+
+  const mainChart = echarts.init(document.getElementById('main'));
+  const deltaChart = echarts.init(document.getElementById('delta'));
+  // Zoom is kept in sync by hand (see syncZoom); echarts.connect would also mirror tooltips across both charts.
+
+  // Main chart: just the reading at that point. Full commit detail is in the delta tooltip and the click panel.
+  const compactTip = c =>
+    `<b>${fmt(c.total)}</b> violations` +
+    `<div style="opacity:.75">${day(c.t)} · ${esc(c.branch)} · level ${c.level}</div>`;
+
+  function showDetail(i) {
+    state.selected = i;
+    const c = commits[i], d = c.delta, iu = issueUrl(c), el = document.getElementById('detail');
+    const chips = (label, list) => list.length ? `<div class="chips"><b>${label}</b>${list.map(([k, v]) => `<span class="chip">${sgn(v)} ${esc(k)}</span>`).join('')}</div>` : '';
+    el.innerHTML = `
+      <div class="nav">
+        <button data-step="-1" ${i === 0 ? 'disabled' : ''} title="Previous commit (←)">‹ Prev</button>
+        <span class="pos">${fmt(i + 1)} of ${fmt(commits.length)}</span>
+        <button data-step="1" ${i === commits.length - 1 ? 'disabled' : ''} title="Next commit (→)">Next ›</button>
+        <button class="close" aria-label="Close details" title="Close (Esc)">×</button>
+      </div>
+      <div class="meta">${day(c.t)} · ${esc(c.branch)} · level ${c.level} · ${c.format || '–'} baseline</div>
+      <div class="big"><span class="mark" style="background:var(${d > 0 ? '--up' : '--down'})"></span>${sgn(d)} <span style="font-weight:400;color:var(--text-secondary);font-size:14px">→ ${fmt(c.total)} violations</span></div>
+      <div class="subj">${iu ? `<a href="${iu}" target="_blank" rel="noopener">#${c.issue}</a> ` : ''}${esc(c.subject)}
+        <a href="${commitUrl(c)}" target="_blank" rel="noopener" style="font-size:12px">${c.hash.slice(0, 10)}</a></div>
+      ${chips('Identifiers', c.byIdentifier)}${chips('Areas', c.byArea)}
+      ${!c.byIdentifier.length && !c.byArea.length ? '<div class="meta">No breakdown for this commit (first commit or baseline format change).</div>' : ''}`;
+    const wasHidden = el.hidden;
+    el.hidden = false;
+    el.querySelector('.close').onclick = closeDetail;
+    el.querySelectorAll('[data-step]').forEach(b => b.onclick = () => stepDetail(+b.dataset.step));
+    if (wasHidden) el.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    markSelected();
+    keepInView(c.t);
+  }
+  function closeDetail() { document.getElementById('detail').hidden = true; state.selected = null; markSelected(); }
+  function stepDetail(n) {
+    const j = state.selected + n;
+    if (state.selected != null && j >= 0 && j < commits.length) showDetail(j);
+  }
+  // Ring around the selected commit on the main chart.
+  function markSelected() {
+    const c = commits[state.selected];
+    mainChart.setOption({ series: [{ id: 'sel', data: c ? [[c.t, c.total]] : [] }] });
+  }
+  // When stepping past the edge of the zoomed window, pan it (same width) so the commit stays visible.
+  function keepInView(t) {
+    const [a, b] = state.zoom;
+    if (a == null || b == null || (t >= a && t <= b)) return;
+    const w = b - a, lo = commits[0].t, hi = Date.parse(D.generated);
+    const start = Math.max(lo, Math.min(t - w / 2, hi - w));
+    mainChart.dispatchAction({ type: 'dataZoom', dataZoomIndex: 0, startValue: start, endValue: start + w });
+  }
+  addEventListener('keydown', e => {
+    if (document.getElementById('detail').hidden || e.altKey || e.ctrlKey || e.metaKey) return;
+    if (e.target.closest('input, select, textarea')) return;
+    if (e.key === 'ArrowLeft') { stepDetail(-1); e.preventDefault(); }
+    else if (e.key === 'ArrowRight') { stepDetail(1); e.preventDefault(); }
+    else if (e.key === 'Escape') closeDetail();
+  });
+
+  function tooltipHtml(c, i) {
+    const d = c.delta;
+    const parts = [
+      `<div style="max-width:420px;white-space:normal"><b>${fmt(c.total)}</b> violations <span style="opacity:.7">(${sgn(d)})</span>`,
+      `<div style="opacity:.75">${day(c.t)} · ${esc(c.branch)} · level ${c.level}</div>`,
+      `<div style="margin-top:4px">${esc(c.subject)}</div>`,
+    ];
+    if (c.byIdentifier.length) parts.push(`<div style="margin-top:4px;opacity:.85">${c.byIdentifier.slice(0, 4).map(([k, v]) => `${sgn(v)} ${esc(k)}`).join('<br>')}</div>`);
+    parts.push('</div>');
+    return parts.join('');
+  }
+
+  function render() {
+    const surface = css('--surface-1'), text2 = css('--text-secondary'), muted = css('--text-muted'), grid = css('--grid'), border = css('--border');
+    const s1 = css('--series-1'), up = css('--up'), down = css('--down'), tag = css('--tag');
+    const bandA = css('--band-a'), bandB = css('--band-b');
+    const line = commits.map((c, i) => [c.t, c.total, i]);
+    const big = commits.map((c, i) => ({ c, i, d: c.delta })).filter(x => Math.abs(x.d) >= state.threshold);
+
+    const axisCommon = {
+      axisLine: { lineStyle: { color: border } }, axisTick: { show: false },
+      axisLabel: { color: text2 }, splitLine: { lineStyle: { color: grid } },
+    };
+    const zoomStart = state.zoom[0], zoomEnd = state.zoom[1];
+
+    mainChart.setOption({
+      animation: false,
+      grid: { left: 60, right: 24, top: 44, bottom: 70 },
+      tooltip: {
+        trigger: 'axis', axisPointer: { type: 'line', lineStyle: { color: muted } },
+        backgroundColor: surface, borderColor: border, textStyle: { color: css('--text-primary'), fontSize: 12 },
+        formatter: ps => { const p = ps.find(p => p.seriesId === 'line') || ps[0]; const i = p.data[2] ?? p.data.i; return compactTip(commits[i]); },
+      },
+      xAxis: { type: 'time', ...axisCommon, splitLine: { show: false } },
+      yAxis: { type: state.scale === 'log' ? 'log' : 'value', ...axisCommon, min: state.scale === 'log' ? 100 : 0, axisLabel: { color: text2, formatter: v => fmt(v) } },
+      dataZoom: [
+        { type: 'slider', xAxisIndex: 0, startValue: zoomStart, endValue: zoomEnd, height: 22, bottom: 14, borderColor: border, textStyle: { color: muted }, filterMode: 'none',
+          labelFormatter: v => day(v) },
+        { type: 'inside', xAxisIndex: 0, filterMode: 'none', zoomOnMouseWheel: true },
+      ],
+      series: [
+        {
+          id: 'line', type: 'line', step: 'end', data: line, showSymbol: false, lineStyle: { width: 2, color: s1 }, itemStyle: { color: s1 },
+          areaStyle: { color: s1, opacity: 0.06 },
+          markArea: {
+            silent: true,
+            label: { color: muted, fontSize: 11, position: 'insideBottom', distance: 6 },
+            data: branchPeriods.map((p, i) => [
+              { xAxis: p.start, name: p.k, itemStyle: { color: i % 2 ? bandB : bandA } }, { xAxis: p.end },
+            ]),
+          },
+          markLine: {
+            symbol: 'none', silent: true,
+            data: [
+              ...tagGroups.map(g => ({
+                xAxis: g.t, lineStyle: { color: tag, type: 'dashed', width: 1 },
+                label: { formatter: g.names.join('\n'), color: tag, position: 'end', fontSize: 11, lineHeight: 13 },
+              })),
+              ...levelChanges.map(c => ({
+                xAxis: c.t, lineStyle: { color: muted, type: 'dotted', width: 1 },
+                label: { formatter: `level ${c.level}`, color: muted, position: 'insideMiddleTop', fontSize: 11 },
+              })),
+              ...(formatChange ? [{ xAxis: formatChange.t, lineStyle: { color: muted, type: 'dotted', width: 1 },
+                label: { formatter: 'neon → php', color: muted, position: 'insideMiddleTop', fontSize: 11 } }] : []),
+            ],
+          },
+        },
+        {
+          id: 'big', type: 'scatter', symbolSize: 9, cursor: 'pointer', z: 5,
+          data: big.map(({ c, i, d }) => ({ value: [c.t, c.total, i], i, itemStyle: { color: d > 0 ? up : down, borderColor: surface, borderWidth: 2 } })),
+        },
+        {
+          id: 'sel', type: 'scatter', symbolSize: 16, z: 6, silent: true,
+          itemStyle: { color: 'transparent', borderColor: css('--text-primary'), borderWidth: 2 },
+          data: state.selected != null ? [[commits[state.selected].t, commits[state.selected].total]] : [],
+        },
+      ],
+    }, { replaceMerge: ['series'] });
+
+    deltaChart.setOption({
+      animation: false,
+      grid: { left: 60, right: 24, top: 10, bottom: 28 },
+      tooltip: {
+        trigger: 'axis', backgroundColor: surface, borderColor: border, textStyle: { color: css('--text-primary'), fontSize: 12 },
+        formatter: ps => { const i = ps[0].data.i; return tooltipHtml(commits[i], i); },
+      },
+      xAxis: { type: 'time', ...axisCommon, splitLine: { show: false } },
+      // Clip the axis so a couple of huge jumps don't flatten everything; clipped bars get a value label.
+      yAxis: { type: 'value', ...axisCommon, min: -DELTA_CLIP, max: DELTA_CLIP, axisLabel: { color: text2, formatter: v => sgn(v) } },
+      dataZoom: [{ type: 'inside', xAxisIndex: 0, startValue: zoomStart, endValue: zoomEnd, filterMode: 'none', zoomOnMouseWheel: true }],
+      series: [{
+        id: 'd', type: 'bar', barMaxWidth: 6, barMinHeight: 1, cursor: 'pointer',
+        data: commits.map((c, i) => {
+          const d = c.delta, clipped = Math.abs(d) > DELTA_CLIP;
+          return { value: [c.t, Math.max(-DELTA_CLIP, Math.min(DELTA_CLIP, d))], i,
+            itemStyle: { color: d >= 0 ? up : down, borderRadius: d >= 0 ? [2, 2, 0, 0] : [0, 0, 2, 2] },
+            label: clipped ? { show: true, formatter: sgn(d), color: text2, fontSize: 11, position: d > 0 ? 'insideTopLeft' : 'insideBottomLeft', offset: [6, 0] } : undefined };
+        }),
+      }],
+    }, { replaceMerge: ['series'] });
+
+    renderTable();
+  }
+
+  const TABLE_ROWS = 10;
+  function renderTable() {
+    const [a, b] = state.zoom;
+    const rows = commits.map((c, i) => ({ c, i, d: c.delta }))
+      .filter(x => Math.abs(x.d) >= state.threshold && (a == null || x.c.t >= a) && (b == null || x.c.t <= b));
+    const { key, dir } = state.sort;
+    rows.sort((x, y) => {
+      const vx = key === 'delta' ? Math.abs(x.d) : key === 'date' ? x.c.t : x.c.total;
+      const vy = key === 'delta' ? Math.abs(y.d) : key === 'date' ? y.c.t : y.c.total;
+      return (vx - vy) * dir;
+    });
+    document.getElementById('tableCount').textContent = `· ${rows.length}`;
+    const capped = !state.tableExpanded && rows.length > TABLE_ROWS;
+    const more = document.getElementById('tblMore');
+    more.hidden = rows.length <= TABLE_ROWS;
+    more.textContent = capped ? `Show all ${rows.length} changes` : `Show top ${TABLE_ROWS} only`;
+    document.querySelector('#tbl tbody').innerHTML = (capped ? rows.slice(0, TABLE_ROWS) : rows).map(({ c, d }) => {
+      const iu = issueUrl(c);
+      const chips = [...c.byIdentifier.slice(0, 4), ...c.byArea.slice(0, 3)]
+        .map(([k, v]) => `<span class="chip">${sgn(v)} ${esc(k)}</span>`).join('');
+      return `<tr>
+        <td style="white-space:nowrap">${day(c.t)}</td>
+        <td class="num"><span class="mark" style="background:var(${d > 0 ? '--up' : '--down'})"></span>${sgn(d)}</td>
+        <td class="num">${fmt(c.total)}</td>
+        <td style="white-space:nowrap">${esc(c.branch)}</td>
+        <td>${iu ? `<a href="${iu}" target="_blank" rel="noopener">#${c.issue}</a> ` : ''}${esc(c.subject)}
+          <a href="${commitUrl(c)}" target="_blank" rel="noopener" style="font-size:12px">${c.hash.slice(0, 10)}</a></td>
+        <td>${chips || '<span style="color:var(--text-muted)">—</span>'}</td>
+      </tr>`;
+    }).join('');
+  }
+
+  // Interactions
+  const openFor = i => { const c = commits[i]; window.open(issueUrl(c) || commitUrl(c), '_blank', 'noopener'); };
+  // Click anywhere in the plot for details of the nearest commit (the same one the axis tooltip snaps to).
+  const inPlot = e => mainChart.containPixel('grid', [e.offsetX, e.offsetY]);
+  const nearestCommit = t => {
+    let lo = 0, hi = commits.length - 1;
+    while (hi - lo > 1) { const mid = (lo + hi) >> 1; if (commits[mid].t <= t) lo = mid; else hi = mid; }
+    return Math.abs(commits[hi].t - t) < Math.abs(commits[lo].t - t) ? hi : lo;
+  };
+  mainChart.getZr().on('mousemove', e => { if (inPlot(e)) mainChart.getZr().setCursorStyle('pointer'); });
+  mainChart.getZr().on('click', e => {
+    if (!inPlot(e)) return;
+    const [t] = mainChart.convertFromPixel({ gridIndex: 0 }, [e.offsetX, e.offsetY]);
+    showDetail(nearestCommit(t));
+  });
+  deltaChart.on('click', p => openFor(p.data.i));
+  // Wheel zoom needs Ctrl, or ⌘ on a Mac, like embedded Google Maps (trackpad pinch also arrives as Ctrl+wheel).
+  // ECharts cancels every wheel event over the chart, so other wheel events are stopped before they reach it
+  // and the page scrolls normally; a brief overlay says which key to hold.
+  const isMac = /Mac|iPhone|iPad/.test(navigator.userAgentData?.platform || navigator.platform || navigator.userAgent);
+  const zoomKey = isMac ? '⌘' : 'Ctrl';
+  document.querySelectorAll('.zoomKey').forEach(el => { el.textContent = zoomKey; });
+  ['main', 'delta'].forEach(id => {
+    const el = document.getElementById(id);
+    const hint = document.createElement('div');
+    hint.className = 'zoomhint';
+    hint.setAttribute('aria-hidden', 'true');
+    hint.textContent = `Use ${zoomKey} + scroll to zoom`;
+    el.appendChild(hint);
+    let timer;
+    el.addEventListener('wheel', e => {
+      if (e.ctrlKey || e.metaKey) { hint.classList.remove('show'); return; }
+      e.stopPropagation();
+      hint.classList.add('show');
+      clearTimeout(timer);
+      timer = setTimeout(() => hint.classList.remove('show'), 1200);
+    }, { capture: true, passive: true });
+  });
+
+  let syncingZoom = false;
+  const syncZoom = (from, to) => from.on('datazoom', () => {
+    if (syncingZoom) return;
+    const dz = from.getOption().dataZoom[0];
+    state.zoom = [dz.startValue, dz.endValue];
+    syncingZoom = true;
+    to.dispatchAction({ type: 'dataZoom', startValue: dz.startValue, endValue: dz.endValue });
+    syncingZoom = false;
+    renderTable();
+  });
+  syncZoom(mainChart, deltaChart);
+  syncZoom(deltaChart, mainChart);
+
+  document.querySelectorAll('[data-scale]').forEach(b => b.onclick = () => {
+    state.scale = b.dataset.scale;
+    document.querySelectorAll('[data-scale]').forEach(x => x.setAttribute('aria-pressed', x === b));
+    render();
+  });
+  document.querySelectorAll('[data-theme-btn]').forEach(b => b.onclick = () => {
+    const v = b.dataset.themeBtn;
+    if (v === 'auto') document.documentElement.removeAttribute('data-theme'); else document.documentElement.setAttribute('data-theme', v);
+    document.querySelectorAll('[data-theme-btn]').forEach(x => x.setAttribute('aria-pressed', x === b));
+    render();
+  });
+  matchMedia('(prefers-color-scheme: dark)').addEventListener('change', render);
+  document.getElementById('threshold').oninput = e => { state.threshold = Math.max(1, +e.target.value || 1); render(); };
+  document.getElementById('range').onchange = e => {
+    const end = Date.parse(D.generated);
+    state.zoom = e.target.value === 'all' ? [commits[0].t, end] : [end - (+e.target.value) * 365 * 864e5, end];
+    render();
+  };
+  document.getElementById('tblMore').onclick = () => { state.tableExpanded = !state.tableExpanded; renderTable(); };
+  document.querySelectorAll('#tbl th[data-sort]').forEach(th => th.onclick = () => {
+    const k = th.dataset.sort;
+    state.sort = { key: k, dir: state.sort.key === k ? -state.sort.dir : -1 };
+    renderTable();
+  });
+  addEventListener('resize', () => { mainChart.resize(); deltaChart.resize(); });
+
+  document.getElementById('footer').innerHTML =
+    `Source: <a href="https://github.com/drupal/drupal">github.com/drupal/drupal</a> <code>${esc(D.ref)}</code> at ${day(Date.parse(D.generated))}. ` +
+    `Baseline: <code>core/phpstan-baseline.neon</code> until ${formatChange ? day(formatChange.t) : '?'}, then <code>core/.phpstan-baseline.php</code>. ` +
+    `Branch is derived from <code>Drupal::VERSION</code> at each commit.`;
+
+  // Identifier breakdown at HEAD. Colours follow the identifier (top six overall), not its rank after filtering.
+  const ids = D.currentByIdentifier.map(([id, n]) => ({ id, n }));
+  const colourOf = new Map(ids.slice(0, 6).map((x, i) => [x.id, `var(--cat-${i + 1})`]));
+  const HIDE_KEY = 'phpstan-baseline:hiddenIds';
+  let hidden = new Set();
+  try { hidden = new Set(JSON.parse(localStorage.getItem(HIDE_KEY) || '[]')); } catch (e) {}
+  const saveHidden = () => { try { localStorage.setItem(HIDE_KEY, JSON.stringify([...hidden])); } catch (e) {} };
+  const docUrl = id => /^[a-z][A-Za-z]*\.[A-Za-z.]+$/.test(id) && !id.startsWith('drupal.') ? `https://phpstan.org/error-identifiers/${id}` : null;
+  const idFilter = document.getElementById('idFilter');
+  const ID_ROWS = 20;
+  let idExpanded = false;
+  const matches = x => x.id.toLowerCase().includes(idFilter.value.trim().toLowerCase());
+
+  function renderIds() {
+    const shown = ids.filter(x => !hidden.has(x.id));
+    const total = shown.reduce((a, x) => a + x.n, 0);
+    const max = Math.max(1, ...shown.map(x => x.n));
+    const pct = n => total ? (100 * n / total) : 0;
+    const pctTxt = n => { const p = pct(n); return p >= 1 ? p.toFixed(1) + '%' : p > 0 ? '<1%' : '0%'; };
+    document.getElementById('idCount').textContent = `· ${fmt(total)} of ${fmt(ids.reduce((a, x) => a + x.n, 0))} shown, ${shown.length} of ${ids.length} identifiers`;
+
+    const segs = shown.filter(x => colourOf.has(x.id));
+    const other = total - segs.reduce((a, x) => a + x.n, 0);
+    const parts = [...segs.map(x => ({ label: x.id, n: x.n, c: colourOf.get(x.id) })), ...(other ? [{ label: 'Other', n: other, c: 'var(--other)' }] : [])];
+    const split = document.getElementById('idSplit');
+    split.innerHTML = parts.map(p => `<span title="${esc(p.label)}: ${fmt(p.n)} (${pctTxt(p.n)})" style="flex:${p.n} 0 0;background:${p.c}"></span>`).join('');
+    split.setAttribute('aria-label', parts.map(p => `${p.label} ${pctTxt(p.n)}`).join(', '));
+    document.getElementById('idLegend').innerHTML = parts.map(p => `<span><i class="sw" style="background:${p.c}"></i>${esc(p.label)} ${pctTxt(p.n)}</span>`).join('');
+
+    const listed = ids.filter(matches);
+    const capped = !idExpanded && !idFilter.value.trim() && listed.length > ID_ROWS;
+    const more = document.getElementById('idMore');
+    more.hidden = !(capped || (idExpanded && listed.length > ID_ROWS));
+    more.textContent = capped ? `Show all ${listed.length} identifiers` : `Show top ${ID_ROWS} only`;
+    document.querySelector('#idTbl tbody').innerHTML = (capped ? listed.slice(0, ID_ROWS) : listed).map(x => {
+      const off = hidden.has(x.id), u = docUrl(x.id);
+      return `<tr class="${off ? 'off' : ''}">
+        <td><input type="checkbox" data-id="${esc(x.id)}" ${off ? '' : 'checked'} aria-label="Include ${esc(x.id)}"></td>
+        <td><i class="sw" style="background:${colourOf.get(x.id) || 'var(--other)'}"></i>${u ? `<a href="${u}" target="_blank" rel="noopener">${esc(x.id)}</a>` : esc(x.id)}</td>
+        <td><div class="meter"><span style="width:${(100 * x.n / max).toFixed(2)}%"></span></div></td>
+        <td class="num">${fmt(x.n)}</td>
+        <td class="num">${off ? '–' : pctTxt(x.n)}</td>
+      </tr>`;
+    }).join('');
+  }
+  document.querySelector('#idTbl tbody').addEventListener('change', e => {
+    const id = e.target.dataset.id; if (!id) return;
+    e.target.checked ? hidden.delete(id) : hidden.add(id);
+    saveHidden(); renderIds();
+  });
+  idFilter.oninput = renderIds;
+  document.getElementById('idMore').onclick = () => { idExpanded = !idExpanded; renderIds(); };
+  document.getElementById('idShowAll').onclick = () => { hidden.clear(); saveHidden(); renderIds(); };
+  document.getElementById('idHideMatches').onclick = () => { ids.filter(matches).forEach(x => hidden.add(x.id)); saveHidden(); renderIds(); };
+  document.getElementById('idOnlyMatches').onclick = () => { hidden = new Set(ids.filter(x => !matches(x)).map(x => x.id)); saveHidden(); renderIds(); };
+
+  renderTiles();
+  render();
+  renderIds();
+})();
+</script>
+</body>
+</html>
