@@ -99,7 +99,9 @@ h1 { font-size: 20px; margin: 0 0 4px; font-weight: 650; }
 .detail { border-top: 1px solid var(--border); margin-top: 8px; padding: 10px 2px 2px; position: relative; }
 .detail .meta { color: var(--text-secondary); font-size: 12px; }
 .detail .big { font-size: 18px; font-weight: 650; font-variant-numeric: tabular-nums; }
-.detail .subj { margin: 4px 0 6px; }
+.detail .subj { margin: 4px 0 2px; }
+.detail .authors summary { cursor: pointer; }
+.detail .authors[open] summary { margin-bottom: 2px; }
 .detail .chips { display: flex; flex-wrap: wrap; gap: 4px 0; }
 .detail .chips b { font-size: 11px; font-weight: 600; color: var(--text-muted); margin: 2px 6px 0 0; }
 .detail .chip { display: inline-block; font-size: 11px; color: var(--text-secondary); border: 1px solid var(--border); border-radius: 4px; padding: 0 5px; margin: 1px 3px 1px 0; }
@@ -214,7 +216,8 @@ footer { color: var(--text-muted); font-size: 12px; }
         <th data-sort="delta" class="num">Change</th>
         <th data-sort="total" class="num">After</th>
         <th>Branch</th>
-        <th>Issue / commit</th>
+        <th>Issue</th>
+        <th>Commit</th>
         <th>Breakdown</th>
       </tr></thead>
       <tbody></tbody>
@@ -237,7 +240,7 @@ footer { color: var(--text-muted); font-size: 12px; }
   const commits = D.commits.map(c => {
     const n = verNum(c.version);
     if (n >= maxVer) { maxVer = n; curBranch = branchOf(c.version); }
-    return { ...c, t: Date.parse(c.date), branch: curBranch };
+    return { ...c, ...parseSubject(c.subject), t: Date.parse(c.date), branch: curBranch };
   });
   const fmt = n => n.toLocaleString('en');
   const sgn = n => (n > 0 ? '+' : n < 0 ? '−' : '') + fmt(Math.abs(n));
@@ -245,6 +248,40 @@ footer { color: var(--text-muted); font-size: 12px; }
   const day = t => new Date(t).toISOString().slice(0, 10);
   const issueUrl = c => c.issue ? `https://www.drupal.org/i/${c.issue}` : null;
   const commitUrl = c => `https://git.drupalcode.org/project/drupal/-/commit/${c.hash}`;
+
+  // Split a commit subject into a bare title plus credits. Handles the two drupal.org formats:
+  //   Issue #123 [follow-up] by a, b: Title        (to late 2025)
+  //   task: #123 Title By: a, b                    (conventional commits, from late 2025)
+  // and either one wrapped in Revert "...". The issue number is dropped; it is shown as a link.
+  function parseSubject(subject) {
+    let s = subject, revert = false, type = null, followUp = false, authors = [];
+    const r = s.match(/^Revert "(.*)"$/);
+    if (r) { revert = true; s = r[1]; }
+    let m = s.match(/^(.*?)\s+By:\s+(.+)$/);
+    if (m) { s = m[1]; authors = m[2].split(/,\s*/); }
+    if ((m = s.match(/^Issue #+\d+( follow-up)?(?: by (.+?))?:\s*(.*)$/))) {
+      followUp = !!m[1];
+      if (m[2]) authors = m[2].split(/,\s*/);
+      s = m[3];
+    } else if ((m = s.match(/^(\w+):\s*#+\d+:?\s*(.*)$/))) {
+      type = m[1]; s = m[2];
+    }
+    const title = (revert ? 'Revert: ' : '') + (followUp ? 'Follow-up: ' : '') + s;
+    return { title, authors, type };
+  }
+  // "#123 Title" with the issue linked, or just the title.
+  const titleHtml = c => {
+    const iu = issueUrl(c);
+    return (iu ? `<a href="${iu}" target="_blank" rel="noopener">#${c.issue}</a> ` : '') + esc(c.title);
+  };
+  const AUTHORS_SHOWN = 8;
+  const authorsHtml = c => {
+    const a = c.authors;
+    if (!a.length) return '';
+    const head = esc(a.slice(0, AUTHORS_SHOWN).join(', '));
+    if (a.length <= AUTHORS_SHOWN) return `<div class="meta">By ${head}</div>`;
+    return `<details class="meta authors"><summary>By ${head} and ${a.length - AUTHORS_SHOWN} more</summary>${esc(a.slice(AUTHORS_SHOWN).join(', '))}</details>`;
+  };
 
   function branchOf(v) {
     if (!v) return '?';
@@ -310,7 +347,7 @@ footer { color: var(--text-muted); font-size: 12px; }
 
   function showDetail(i) {
     state.selected = i;
-    const c = commits[i], d = c.delta, iu = issueUrl(c), el = document.getElementById('detail');
+    const c = commits[i], d = c.delta, el = document.getElementById('detail');
     const chips = (label, list) => list.length ? `<div class="chips"><b>${label}</b>${list.map(([k, v]) => `<span class="chip">${sgn(v)} ${esc(k)}</span>`).join('')}</div>` : '';
     el.innerHTML = `
       <div class="nav">
@@ -319,10 +356,11 @@ footer { color: var(--text-muted); font-size: 12px; }
         <button data-step="1" ${i === commits.length - 1 ? 'disabled' : ''} title="Next commit (→)">Next ›</button>
         <button class="close" aria-label="Close details" title="Close (Esc)">×</button>
       </div>
-      <div class="meta">${day(c.t)} · ${esc(c.branch)} · level ${c.level} · ${c.format || '–'} baseline</div>
+      <div class="meta">${day(c.t)} · ${esc(c.branch)} · level ${c.level} · ${c.format || '–'} baseline${c.type ? ` · ${esc(c.type)}` : ''}</div>
       <div class="big"><span class="mark" style="background:var(${d > 0 ? '--up' : '--down'})"></span>${sgn(d)} <span style="font-weight:400;color:var(--text-secondary);font-size:14px">→ ${fmt(c.total)} violations</span></div>
-      <div class="subj">${iu ? `<a href="${iu}" target="_blank" rel="noopener">#${c.issue}</a> ` : ''}${esc(c.subject)}
+      <div class="subj">${titleHtml(c)}
         <a href="${commitUrl(c)}" target="_blank" rel="noopener" style="font-size:12px">${c.hash.slice(0, 10)}</a></div>
+      ${authorsHtml(c)}
       ${chips('Identifiers', c.byIdentifier)}${chips('Areas', c.byArea)}
       ${!c.byIdentifier.length && !c.byArea.length ? '<div class="meta">No breakdown for this commit (first commit or baseline format change).</div>' : ''}`;
     const wasHidden = el.hidden;
@@ -364,7 +402,7 @@ footer { color: var(--text-muted); font-size: 12px; }
     const parts = [
       `<div style="max-width:420px;white-space:normal"><b>${fmt(c.total)}</b> violations <span style="opacity:.7">(${sgn(d)})</span>`,
       `<div style="opacity:.75">${day(c.t)} · ${esc(c.branch)} · level ${c.level}</div>`,
-      `<div style="margin-top:4px">${esc(c.subject)}</div>`,
+      `<div style="margin-top:4px">${c.issue ? `#${c.issue} ` : ''}${esc(c.title)}</div>`,
     ];
     if (c.byIdentifier.length) parts.push(`<div style="margin-top:4px;opacity:.85">${c.byIdentifier.slice(0, 4).map(([k, v]) => `${sgn(v)} ${esc(k)}`).join('<br>')}</div>`);
     parts.push('</div>');
@@ -480,7 +518,6 @@ footer { color: var(--text-muted); font-size: 12px; }
     more.hidden = rows.length <= TABLE_ROWS;
     more.textContent = capped ? `Show all ${rows.length} changes` : `Show top ${TABLE_ROWS} only`;
     document.querySelector('#tbl tbody').innerHTML = (capped ? rows.slice(0, TABLE_ROWS) : rows).map(({ c, d }) => {
-      const iu = issueUrl(c);
       const chips = [...c.byIdentifier.slice(0, 4), ...c.byArea.slice(0, 3)]
         .map(([k, v]) => `<span class="chip">${sgn(v)} ${esc(k)}</span>`).join('');
       return `<tr>
@@ -488,7 +525,8 @@ footer { color: var(--text-muted); font-size: 12px; }
         <td class="num"><span class="mark" style="background:var(${d > 0 ? '--up' : '--down'})"></span>${sgn(d)}</td>
         <td class="num">${fmt(c.total)}</td>
         <td style="white-space:nowrap">${esc(c.branch)}</td>
-        <td>${iu ? `<a href="${iu}" target="_blank" rel="noopener">#${c.issue}</a> ` : ''}${esc(c.subject)}
+        <td class="num">${c.issue ? `<a href="${issueUrl(c)}" target="_blank" rel="noopener">#${c.issue}</a>` : '<span style="color:var(--text-muted)">—</span>'}</td>
+        <td>${esc(c.title)}
           <a href="${commitUrl(c)}" target="_blank" rel="noopener" style="font-size:12px">${c.hash.slice(0, 10)}</a></td>
         <td>${chips || '<span style="color:var(--text-muted)">—</span>'}</td>
       </tr>`;
