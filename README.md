@@ -7,9 +7,10 @@ It also breaks down the current baseline by error identifier.
 ## Build locally
 
 ```sh
-./build.sh                          # clone/fetch drupal/drupal, extract, write app/data.js (~35 s)
-python3 -m http.server -d app 8765  # then open http://localhost:8765/
+./build.sh   # clone/fetch drupal/drupal, extract, write app/data.js (~35 s)
 ```
+
+Then open `app/index.html` in a browser. No server is needed: the data is loaded as a plain script.
 
 Needs `git` and `python3` (standard library only). The first run makes a blobless clone of
 github.com/drupal/drupal in `data/drupal/`; later runs only fetch new history.
