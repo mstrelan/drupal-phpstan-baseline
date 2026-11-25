@@ -5,16 +5,11 @@ on:
     - cron: '17 3 * * *' # daily, 03:17 UTC
   push:
     branches: [main]
+  pull_request: # build only, as a check; deploy runs only on main
   workflow_dispatch:
 
 permissions:
   contents: read
-  pages: write
-  id-token: write
-
-concurrency:
-  group: pages
-  cancel-in-progress: false
 
 jobs:
   build:
@@ -32,14 +27,33 @@ jobs:
       - name: Build data
         run: ./build.sh
 
-      - uses: actions/configure-pages@v5
-      - uses: actions/upload-pages-artifact@v3
+      - name: Check data
+        run: |
+          python3 -c "
+          import json
+          d = json.load(open('app/data.json'))
+          assert len(d['commits']) > 600, 'too few commits'
+          assert d['currentByIdentifier'], 'no identifiers at HEAD'
+          print(len(d['commits']), 'commits, latest total', d['commits'][-1]['total'])
+          "
+
+      - if: github.event_name != 'pull_request'
+        uses: actions/configure-pages@v5
+      - if: github.event_name != 'pull_request'
+        uses: actions/upload-pages-artifact@v3
         with:
           path: app
 
   deploy:
+    if: github.event_name != 'pull_request'
     needs: build
     runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    concurrency:
+      group: pages
+      cancel-in-progress: false
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
