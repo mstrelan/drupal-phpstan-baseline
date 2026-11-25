@@ -10,4 +10,4 @@ git -C data/drupal log --first-parent --format=%H origin/main -- core/phpstan-ba
   | sort -u | git -C data/drupal -c fetch.negotiationAlgorithm=noop fetch -q --no-tags --no-write-fetch-head --filter=blob:none origin --stdin
 python3 extract.py data/drupal app/data.json
 { printf 'window.BASELINE_DATA = '; cat app/data.json; echo ';'; } > app/data.js
-echo "Done. Serve with: python3 -m http.server -d app 8765"
+echo "Done. Open app/index.html in a browser."
