@@ -1,0 +1,10 @@
+version: 2
+updates:
+  # Keep the actions in the Pages workflow current. All updates come as one grouped PR.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    groups:
+      actions:
+        patterns: ["*"]
