@@ -4,6 +4,8 @@ Charts the size of Drupal core's PHPStan baseline on the development branch over
 release tags, PHPStan level changes and links to the drupal.org issues behind large changes.
 It also breaks down the current baseline by error identifier.
 
+**Live site: https://mstrelan.github.io/drupal-phpstan-baseline/** (rebuilt daily)
+
 ## Build locally
 
 ```sh
