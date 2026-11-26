@@ -19,8 +19,6 @@
   --up: #eb6834;
   --down: #2a78d6;
   --tag: #6250d6;
-  --band-a: rgba(0,0,0,0.035);
-  --band-b: rgba(0,0,0,0);
   --link: #1c5cab;
   --cat-1: #2a78d6; --cat-2: #eb6834; --cat-3: #1baf7a; --cat-4: #eda100; --cat-5: #e87ba4; --cat-6: #008300;
   --other: #c4c3bd;
@@ -38,9 +36,7 @@
     --series-1: #3987e5;
     --up: #d95926;
     --down: #3987e5;
-    --tag: #9085e9;
-    --band-a: rgba(255,255,255,0.045);
-    --band-b: rgba(255,255,255,0);
+    --tag: #7b6bf2;
     --link: #86b6ef;
     --cat-1: #3987e5; --cat-2: #d95926; --cat-3: #199e70; --cat-4: #c98500; --cat-5: #d55181; --cat-6: #0ca30c;
     --other: #4a4a46;
@@ -58,9 +54,7 @@
   --series-1: #3987e5;
   --up: #d95926;
   --down: #3987e5;
-  --tag: #9085e9;
-  --band-a: rgba(255,255,255,0.045);
-  --band-b: rgba(255,255,255,0);
+  --tag: #7b6bf2;
   --link: #86b6ef;
   --cat-1: #3987e5; --cat-2: #d95926; --cat-3: #199e70; --cat-4: #c98500; --cat-5: #d55181; --cat-6: #0ca30c;
   --other: #4a4a46;
@@ -117,7 +111,7 @@ h1 { font-size: 20px; margin: 0 0 4px; font-weight: 650; }
 .legend i { display: inline-block; width: 14px; height: 3px; vertical-align: middle; margin-right: 5px; border-radius: 2px; }
 .legend i.sw { width: 9px; height: 9px; border-radius: 2px; }
 .legend i.dot { width: 9px; height: 9px; border-radius: 50%; }
-.legend i.dash { height: 0; border-top: 2px dashed var(--tag); }
+.legend i.dash { height: 0; border-top: 1px dashed var(--tag); opacity: 0.4; }
 table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
 th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--border); vertical-align: top; }
 th { color: var(--text-secondary); font-weight: 600; font-size: 12px; cursor: pointer; user-select: none; white-space: nowrap; }
@@ -182,7 +176,7 @@ footer { color: var(--text-muted); font-size: 12px; }
       <span><i class="dot" style="background:var(--up)"></i>Large increase</span>
       <span><i class="dot" style="background:var(--down)"></i>Large decrease</span>
       <span><i class="dash"></i>Minor release tagged (x.y.0)</span>
-      <span>Shaded bands: dev branch at the time · Click the chart for details</span>
+      <span>Click the chart for details</span>
     </div>
     <div id="main"></div>
     <div id="detail" class="detail" hidden></div>
@@ -302,21 +296,15 @@ footer { color: var(--text-muted); font-size: 12px; }
     return v;
   }
 
-  // Contiguous periods of branch / level for bands.
-  function periods(key) {
-    const out = [];
-    for (const c of all) {
-      const k = c[key];
-      if (!out.length || out[out.length - 1].k !== k) out.push({ k, start: c.t, version: c.version });
-      out[out.length - 1].end = c.t;
-    }
-    out.forEach((p, i) => { p.end = i < out.length - 1 ? out[i + 1].start : Date.parse(D.generated); });
-    return out;
-  }
-  const branchPeriods = periods('branch');
   // Group minor tags released within a few days of each other (e.g. 10.4.0 + 11.1.0).
   const tagGroups = [];
+  // Skip a minor if a newer major shipped an equivalent release within ~2 months
+  // (9.5 = 10.0, 10.3 = 11.0, 10.4 = 11.1, ...); the newer tag is the one shown.
+  const tagMajor = t => +t.tag.split('.')[0];
+  const hasNewerEquivalent = t => D.tags.some(o =>
+    tagMajor(o) > tagMajor(t) && Math.abs(Date.parse(o.date) - Date.parse(t.date)) <= 60 * 864e5);
   for (const t of D.tags) {
+    if (hasNewerEquivalent(t)) continue;
     const at = Date.parse(t.date);
     if (at < all[0].t) continue;
     const g = tagGroups[tagGroups.length - 1];
@@ -426,7 +414,6 @@ footer { color: var(--text-muted); font-size: 12px; }
   function render() {
     const surface = css('--surface-1'), text2 = css('--text-secondary'), muted = css('--text-muted'), grid = css('--grid'), border = css('--border');
     const s1 = css('--series-1'), up = css('--up'), down = css('--down'), tag = css('--tag');
-    const bandA = css('--band-a'), bandB = css('--band-b');
     const line = commits.map((c, i) => [c.t, c.total, i]);
     const big = commits.map((c, i) => ({ c, i, d: c.delta })).filter(x => Math.abs(x.d) >= state.threshold);
 
@@ -455,26 +442,17 @@ footer { color: var(--text-muted); font-size: 12px; }
         {
           id: 'line', type: 'line', step: 'end', data: line, showSymbol: false, lineStyle: { width: 2, color: s1 }, itemStyle: { color: s1 },
           areaStyle: { color: s1, opacity: 0.06 },
-          markArea: {
-            silent: true,
-            label: { color: muted, fontSize: 11, position: 'insideBottom', distance: 6 },
-            data: branchPeriods.map((p, i) => [
-              { xAxis: p.start, name: p.k, itemStyle: { color: i % 2 ? bandB : bandA } }, { xAxis: p.end },
-            ]),
-          },
           markLine: {
             symbol: 'none', silent: true,
             data: [
               ...tagGroups.map(g => ({
-                xAxis: g.t, lineStyle: { color: tag, type: 'dashed', width: 1 },
+                xAxis: g.t, lineStyle: { color: /^#[0-9a-f]{6}$/i.test(tag) ? tag + '40' : tag, type: 'dashed', width: 1 },
                 label: { formatter: g.names.join('\n'), color: tag, position: 'end', fontSize: 11, lineHeight: 13 },
               })),
               ...levelChanges.map(c => ({
                 xAxis: c.t, lineStyle: { color: muted, type: 'dotted', width: 1 },
                 label: { formatter: `level ${c.level}`, color: muted, position: 'insideMiddleTop', fontSize: 11 },
               })),
-              ...(formatChange ? [{ xAxis: formatChange.t, lineStyle: { color: muted, type: 'dotted', width: 1 },
-                label: { formatter: 'neon → php', color: muted, position: 'insideMiddleTop', fontSize: 11 } }] : []),
             ],
           },
         },
