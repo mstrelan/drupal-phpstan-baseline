@@ -16,6 +16,9 @@ jobs:
     runs-on: ubuntu-latest
     # A normal run takes about 1.5 minutes (a first, uncached clone a little longer).
     timeout-minutes: 15
+    outputs:
+      built: ${{ steps.plan.outputs.built }}
+      stamp: ${{ steps.stamp.outputs.stamp }}
     steps:
       - uses: actions/checkout@v7
 
@@ -26,10 +29,36 @@ jobs:
           key: drupal-clone-${{ github.run_id }}
           restore-keys: drupal-clone-
 
+      # The newest drupal/drupal commit touching a baseline file. A scheduled run whose newest commit
+      # was already deployed has nothing new to publish.
+      - id: stamp
+        run: |
+          [ -d data/drupal ] || git clone --filter=blob:none --no-checkout https://github.com/drupal/drupal.git data/drupal
+          git -C data/drupal fetch -q origin
+          echo "stamp=$(git -C data/drupal log -1 --format=%H origin/main -- core/phpstan-baseline.neon core/.phpstan-baseline.php)" >> "$GITHUB_OUTPUT"
+
+      - id: seen
+        uses: actions/cache/restore@v6
+        with:
+          path: .build-stamp
+          key: built-${{ steps.stamp.outputs.stamp }}
+          lookup-only: true
+
+      - id: plan
+        run: |
+          if [ "${{ steps.seen.outputs.cache-hit }}" = true ] && [ "${{ github.event_name }}" = schedule ]; then
+            echo "built=false" >> "$GITHUB_OUTPUT"
+            echo "No baseline changes since the last deploy (${{ steps.stamp.outputs.stamp }}); skipping." >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "built=true" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Build data
+        if: steps.plan.outputs.built == 'true'
         run: ./build.sh
 
       - name: Check data
+        if: steps.plan.outputs.built == 'true'
         run: |
           python3 -c "
           import json
@@ -39,15 +68,15 @@ jobs:
           print(len(d['commits']), 'commits, latest total', d['commits'][-1]['total'])
           "
 
-      - if: github.event_name != 'pull_request'
+      - if: steps.plan.outputs.built == 'true' && github.event_name != 'pull_request'
         uses: actions/configure-pages@v6
-      - if: github.event_name != 'pull_request'
+      - if: steps.plan.outputs.built == 'true' && github.event_name != 'pull_request'
         uses: actions/upload-pages-artifact@v5
         with:
           path: app
 
   deploy:
-    if: github.event_name != 'pull_request'
+    if: needs.build.outputs.built == 'true' && github.event_name != 'pull_request'
     needs: build
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -63,3 +92,10 @@ jobs:
     steps:
       - id: deployment
         uses: actions/deploy-pages@v5
+
+      # Remember what was deployed so the next scheduled run can skip when nothing changed.
+      - run: echo "${{ needs.build.outputs.stamp }}" > .build-stamp
+      - uses: actions/cache/save@v6
+        with:
+          path: .build-stamp
+          key: built-${{ needs.build.outputs.stamp }}
