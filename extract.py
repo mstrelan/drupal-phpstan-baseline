@@ -93,6 +93,25 @@ def area(path):
     return parts[0] if len(parts) > 1 else path
 
 
+def repo_path(path):
+    """Baseline paths are relative to core/ ('modules/x', '../composer/y'); make them repo-relative."""
+    return path[3:] if path.startswith("../") else "core/" + path
+
+
+class Table:
+    """Interns strings so per-commit changes can be stored as small integers."""
+
+    def __init__(self):
+        self.items, self.index = [], {}
+
+    def __call__(self, s):
+        i = self.index.get(s)
+        if i is None:
+            i = self.index[s] = len(self.items)
+            self.items.append(s)
+        return i
+
+
 def message_key(msg):
     """Collapse a regex message into a rough category for neon-era entries."""
     m = msg.strip("#^$")
@@ -122,6 +141,7 @@ ISSUE_RE = re.compile(r"(?:Issue\s*)?#(\d{5,8})")
 def main():
     log = git("log", "--first-parent", "--reverse", "--format=%H%x00%cI%x00%aI%x00%s", REF, "--", *BASELINES)
     rows = []
+    paths, idents = Table(), Table()
     prev = Counter()
     prev_fmt = None
     for line in log.splitlines():
@@ -149,6 +169,16 @@ def main():
                     continue
                 by_ident[ident or message_key(msg)] += n
                 by_area[area(path)] += n
+        # Per-path changes as flat [path, identifier, delta, ...] triples, so the UI can filter by path.
+        # Where the breakdown is skipped the identifier is -1 and changes are summed per path instead.
+        changes = Counter()
+        diff = Counter(entries)
+        diff.subtract(prev)
+        for (ident, msg, path), n in diff.items():
+            if n:
+                key = (ident or message_key(msg)) if fmt == prev_fmt and fmt is not None else None
+                changes[(paths(repo_path(path)), idents(key) if key else -1)] += n
+        flat = [x for (p, i), n in sorted(changes.items()) if n for x in (p, i, n)]
         top = lambda c: [[k, v] for k, v in sorted(c.items(), key=lambda kv: -abs(kv[1])) if v][:6]
 
         issue = ISSUE_RE.search(subject)
@@ -165,6 +195,7 @@ def main():
             "level": level_of(h),
             "byIdentifier": top(by_ident),
             "byArea": top(by_area),
+            "changes": flat,
         })
         prev, prev_fmt = entries, fmt
         print(f"{cdate[:10]} {total:6d} {delta:+6d} {subject[:80]}", file=sys.stderr)
@@ -178,20 +209,20 @@ def main():
             tags.append({"tag": t, "date": d})
     tags.sort(key=lambda t: t["date"])
 
-    # Current overall stats
-    head_ids = Counter()
-    last = show(REF, BASELINES[1])
-    if last:
-        for (ident, msg, path), n in parse_php(last).items():
-            head_ids[ident or "(none)"] += n
+    # Current state: [path, identifier, count] triples for the latest baseline.
+    head = Counter()
+    for (ident, msg, path), n in prev.items():
+        head[(paths(repo_path(path)), idents(ident or "(none)"))] += n
 
     json.dump({
         "generated": git("log", "-1", "--format=%cI", REF).strip(),
         "ref": REF,
         "commits": rows,
         "tags": tags,
-        "currentByIdentifier": head_ids.most_common(),
-    }, open(OUT, "w"), indent=1)
+        "paths": paths.items,
+        "identifiers": idents.items,
+        "head": [x for (p, i), n in sorted(head.items()) for x in (p, i, n)],
+    }, open(OUT, "w"), separators=(",", ":"))
 
 
 main()
