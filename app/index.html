@@ -5,6 +5,10 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <link rel="icon" href="data:,">
 <title>Drupal PHPStan Baseline</title>
+<script>
+// Apply the saved theme before first paint to avoid a flash.
+try { const t = localStorage.getItem('phpstan-baseline:theme'); if (t === 'light' || t === 'dark') document.documentElement.setAttribute('data-theme', t); } catch (e) {}
+</script>
 <style>
 :root {
   color-scheme: light;
@@ -604,12 +608,14 @@ footer { color: var(--text-muted); font-size: 12px; }
     document.querySelectorAll('[data-scale]').forEach(x => x.setAttribute('aria-pressed', x === b));
     render();
   });
-  document.querySelectorAll('[data-theme-btn]').forEach(b => b.onclick = () => {
-    const v = b.dataset.themeBtn;
+  const THEME_KEY = 'phpstan-baseline:theme';
+  function setTheme(v, persist) {
     if (v === 'auto') document.documentElement.removeAttribute('data-theme'); else document.documentElement.setAttribute('data-theme', v);
-    document.querySelectorAll('[data-theme-btn]').forEach(x => x.setAttribute('aria-pressed', x === b));
-    render();
-  });
+    document.querySelectorAll('[data-theme-btn]').forEach(x => x.setAttribute('aria-pressed', x.dataset.themeBtn === v));
+    if (persist) { try { v === 'auto' ? localStorage.removeItem(THEME_KEY) : localStorage.setItem(THEME_KEY, v); } catch (e) {} }
+  }
+  document.querySelectorAll('[data-theme-btn]').forEach(b => b.onclick = () => { setTheme(b.dataset.themeBtn, true); render(); });
+  setTheme(document.documentElement.getAttribute('data-theme') || 'auto', false);
   matchMedia('(prefers-color-scheme: dark)').addEventListener('change', render);
   document.getElementById('threshold').oninput = e => { state.threshold = Math.max(1, +e.target.value || 1); render(); };
   document.getElementById('range').onchange = e => {
