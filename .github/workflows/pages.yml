@@ -35,7 +35,7 @@ jobs:
           import json
           d = json.load(open('app/data.json'))
           assert len(d['commits']) > 600, 'too few commits'
-          assert d['currentByIdentifier'], 'no identifiers at HEAD'
+          assert d['head'] and d['paths'], 'no baseline entries at HEAD'
           print(len(d['commits']), 'commits, latest total', d['commits'][-1]['total'])
           "
 

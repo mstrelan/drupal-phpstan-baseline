@@ -146,6 +146,13 @@ footer { color: var(--text-muted); font-size: 12px; }
   <h1>Drupal core PHPStan baseline</h1>
   <p class="sub">Ignored errors in the baseline on the development branch (first-parent history of <code>main</code>, back through 12.x/11.x/10.x dev branches).</p>
 
+  <div class="controls" aria-label="Path filter">
+    <label>Path
+      <select id="pathSel" style="max-width:240px"></select>
+    </label>
+    <label>Path contains <input type="search" id="pathText" placeholder="e.g. Plugin/views" style="font:inherit;color:var(--text-primary);background:var(--surface-1);border:1px solid var(--border);border-radius:6px;padding:3px 6px;width:150px"></label>
+  </div>
+
   <div class="tiles" id="tiles"></div>
 
   <div class="controls">
@@ -237,15 +244,18 @@ footer { color: var(--text-muted); font-size: 12px; }
   // after main had moved to 11.0-dev, so keep the newest branch seen so far.
   const verNum = v => { const m = v && v.match(/^(\d+)\.(\d+)/); return m ? +m[1] * 1000 + +m[2] : -1; };
   let maxVer = -1, curBranch = '?';
-  const commits = D.commits.map(c => {
+  const all = D.commits.map(c => {
     const n = verNum(c.version);
     if (n >= maxVer) { maxVer = n; curBranch = branchOf(c.version); }
     return { ...c, ...parseSubject(c.subject), t: Date.parse(c.date), branch: curBranch };
   });
+  // The commits being charted: all of them, or (with a path filter) those touching matching paths,
+  // with totals, deltas and breakdowns recomputed from the per-path changes. See applyFilter().
+  let commits = all;
   const fmt = n => n.toLocaleString('en');
   const sgn = n => (n > 0 ? '+' : n < 0 ? '−' : '') + fmt(Math.abs(n));
   const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[ch]));
-  const day = t => new Date(t).toISOString().slice(0, 10);
+  const day = t => (Number.isFinite(+t) ? new Date(t).toISOString().slice(0, 10) : '');
   const issueUrl = c => c.issue ? `https://www.drupal.org/i/${c.issue}` : null;
   const commitUrl = c => `https://git.drupalcode.org/project/drupal/-/commit/${c.hash}`;
 
@@ -295,7 +305,7 @@ footer { color: var(--text-muted); font-size: 12px; }
   // Contiguous periods of branch / level for bands.
   function periods(key) {
     const out = [];
-    for (const c of commits) {
+    for (const c of all) {
       const k = c[key];
       if (!out.length || out[out.length - 1].k !== k) out.push({ k, start: c.t, version: c.version });
       out[out.length - 1].end = c.t;
@@ -308,12 +318,12 @@ footer { color: var(--text-muted); font-size: 12px; }
   const tagGroups = [];
   for (const t of D.tags) {
     const at = Date.parse(t.date);
-    if (at < commits[0].t) continue;
+    if (at < all[0].t) continue;
     const g = tagGroups[tagGroups.length - 1];
     if (g && at - g.t < 7 * 864e5) g.names.push(t.tag); else tagGroups.push({ t: at, names: [t.tag] });
   }
-  const levelChanges = commits.filter((c, i) => i > 0 && c.level !== commits[i - 1].level);
-  const formatChange = commits.find((c, i) => i > 0 && c.format !== commits[i - 1].format);
+  const levelChanges = all.filter((c, i) => i > 0 && c.level !== all[i - 1].level);
+  const formatChange = all.find((c, i) => i > 0 && c.format !== all[i - 1].format);
 
   const state = { selected: null, scale: 'linear', threshold: 100, zoom: [null, null], sort: { key: 'delta', dir: -1 } };
 
@@ -322,17 +332,21 @@ footer { color: var(--text-muted); font-size: 12px; }
 
   // Tiles
   function renderTiles() {
-    const last = commits[commits.length - 1];
+    const el = document.getElementById('tiles');
+    if (!commits.length) { el.innerHTML = '<div class="tile"><div class="k">Violations now</div><div class="v">0</div><div class="n">nothing in the baseline matches this path</div></div>'; return; }
+    const last = commits[commits.length - 1], head = all[all.length - 1];
     const peak = commits.reduce((a, b) => (b.total > a.total ? b : a));
     const yearAgo = Date.parse(D.generated) - 365 * 864e5;
     const prevYear = [...commits].reverse().find(c => c.t <= yearAgo);
+    // With a filter, no commit before the cut-off means the path had nothing in the baseline then.
+    const prevTotal = prevYear ? prevYear.total : (commits !== all ? 0 : null);
     const tiles = [
-      ['Violations now', fmt(last.total), `${last.branch} · level ${last.level}`],
+      ['Violations now', fmt(last.total), last.total ? `${head.branch} · level ${head.level}` : `none left; last touched ${day(last.t)}`],
       ['Peak', fmt(peak.total), day(peak.t)],
-      ['Change, last 12 months', prevYear ? sgn(last.total - prevYear.total) : '–', prevYear ? `from ${fmt(prevYear.total)}` : ''],
+      ['Change, last 12 months', prevTotal != null ? sgn(last.total - prevTotal) : '–', prevTotal != null ? `from ${fmt(prevTotal)}` : ''],
       ['Commits touching baseline', fmt(commits.length), `since ${day(commits[0].t)}`],
     ];
-    document.getElementById('tiles').innerHTML = tiles.map(([k, v, n]) =>
+    el.innerHTML = tiles.map(([k, v, n]) =>
       `<div class="tile"><div class="k">${k}</div><div class="v">${v}</div><div class="n">${esc(n)}</div></div>`).join('');
   }
 
@@ -385,7 +399,7 @@ footer { color: var(--text-muted); font-size: 12px; }
   function keepInView(t) {
     const [a, b] = state.zoom;
     if (a == null || b == null || (t >= a && t <= b)) return;
-    const w = b - a, lo = commits[0].t, hi = Date.parse(D.generated);
+    const w = b - a, lo = all[0].t, hi = Date.parse(D.generated);
     const start = Math.max(lo, Math.min(t - w / 2, hi - w));
     mainChart.dispatchAction({ type: 'dataZoom', dataZoomIndex: 0, startValue: start, endValue: start + w });
   }
@@ -600,7 +614,7 @@ footer { color: var(--text-muted); font-size: 12px; }
   document.getElementById('threshold').oninput = e => { state.threshold = Math.max(1, +e.target.value || 1); render(); };
   document.getElementById('range').onchange = e => {
     const end = Date.parse(D.generated);
-    state.zoom = e.target.value === 'all' ? [commits[0].t, end] : [end - (+e.target.value) * 365 * 864e5, end];
+    state.zoom = e.target.value === 'all' ? [all[0].t, end] : [end - (+e.target.value) * 365 * 864e5, end];
     render();
   };
   document.getElementById('tblMore').onclick = () => { state.tableExpanded = !state.tableExpanded; renderTable(); };
@@ -617,8 +631,13 @@ footer { color: var(--text-muted); font-size: 12px; }
     `Branch is derived from <code>Drupal::VERSION</code> at each commit.`;
 
   // Identifier breakdown at HEAD. Colours follow the identifier (top six overall), not its rank after filtering.
-  const ids = D.currentByIdentifier.map(([id, n]) => ({ id, n }));
-  const colourOf = new Map(ids.slice(0, 6).map((x, i) => [x.id, `var(--cat-${i + 1})`]));
+  let ids = [], colourOf = new Map();
+  function computeIds() {
+    const m = new Map(), h = D.head;
+    for (let k = 0; k < h.length; k += 3) if (!pm || pm[h[k]]) m.set(h[k + 1], (m.get(h[k + 1]) || 0) + h[k + 2]);
+    ids = [...m].map(([i, n]) => ({ id: D.identifiers[i], n })).filter(x => x.n).sort((a, b) => b.n - a.n);
+    colourOf = new Map(ids.slice(0, 6).map((x, i) => [x.id, `var(--cat-${i + 1})`]));
+  }
   const HIDE_KEY = 'phpstan-baseline:hiddenIds';
   let hidden = new Set();
   try { hidden = new Set(JSON.parse(localStorage.getItem(HIDE_KEY) || '[]')); } catch (e) {}
@@ -672,9 +691,115 @@ footer { color: var(--text-muted); font-size: 12px; }
   document.getElementById('idHideMatches').onclick = () => { ids.filter(matches).forEach(x => hidden.add(x.id)); saveHidden(); renderIds(); };
   document.getElementById('idOnlyMatches').onclick = () => { hidden = new Set(ids.filter(x => !matches(x)).map(x => x.id)); saveHidden(); renderIds(); };
 
-  renderTiles();
-  render();
-  renderIds();
+  // ---- Path filter ----
+  // Every commit carries its changes as [path, identifier, delta] triples (identifier -1: breakdown unavailable),
+  // so any path subset can be re-summed in the browser. `pm` flags the matching paths; null means no filter.
+  const P = D.paths;
+  let pm = null;
+  const areaOf = p => {
+    const parts = p.split('/');
+    if (parts[0] !== 'core') return '../' + parts.slice(0, 2).join('/');
+    const q = parts.slice(1);
+    if (q[0] === 'modules' && q.length > 1) return 'modules/' + q[1];
+    if ((q[0] === 'lib' || q[0] === 'tests') && q.length > 2) return q.slice(0, 3).join('/');
+    return q.length > 1 ? q[0] : q.join('/');
+  };
+  const top6 = m => [...m].filter(([, v]) => v).sort((a, b) => Math.abs(b[1]) - Math.abs(a[1])).slice(0, 6);
+  function buildView() {
+    if (!pm) return all;
+    const out = [];
+    let total = 0;
+    for (const c of all) {
+      const ch = c.changes, bi = new Map(), ba = new Map();
+      let d = 0, touched = false, blind = false;
+      for (let k = 0; k < ch.length; k += 3) {
+        if (!pm[ch[k]]) continue;
+        touched = true; d += ch[k + 2];
+        if (ch[k + 1] < 0) { blind = true; continue; }
+        const id = D.identifiers[ch[k + 1]], ar = areaOf(P[ch[k]]);
+        bi.set(id, (bi.get(id) || 0) + ch[k + 2]);
+        ba.set(ar, (ba.get(ar) || 0) + ch[k + 2]);
+      }
+      if (!touched) continue;
+      total += d;
+      out.push({ ...c, delta: d, total, byIdentifier: blind ? [] : top6(bi), byArea: blind ? [] : top6(ba) });
+    }
+    return out;
+  }
+
+  // Select options: the directories that appear in the baseline's history, grouped as in core's layout,
+  // with the violation count at HEAD (0 for directories that have been cleaned up or removed).
+  const headByPath = new Map();
+  for (let k = 0; k < D.head.length; k += 3) headByPath.set(D.head[k], (headByPath.get(D.head[k]) || 0) + D.head[k + 2]);
+  const GROUPS = [
+    { label: 'Drupal\\Component', base: 'core/lib/Drupal/Component', all: 'All of Component' },
+    { label: 'Drupal\\Core', base: 'core/lib/Drupal/Core', all: 'All of Core' },
+    { label: 'Modules', base: 'core/modules', all: 'All modules' },
+    { label: 'Themes', base: 'core/themes', all: 'All themes' },
+    { label: 'Profiles', base: 'core/profiles', all: 'All profiles' },
+    { label: 'Tests', base: 'core/tests', all: 'All of core/tests' },
+    { label: 'Other', base: null },
+  ];
+  const isFile = s => /\.\w+$/.test(s);
+  function pathOptions() {
+    const groups = GROUPS.map(g => ({ ...g, kids: new Map() }));
+    P.forEach((p, i) => {
+      const n = headByPath.get(i) || 0;
+      const g = groups.find(g => g.base && p.startsWith(g.base + '/')) || groups[groups.length - 1];
+      let key;
+      if (g.base) {
+        const rest = p.slice(g.base.length + 1).split('/');
+        // Plain directories one level down; core/tests is split one level further (Drupal/KernelTests, ...).
+        const depth = g.base === 'core/tests' && (rest[0] === 'Drupal' || rest[0] === 'PHPStan') ? 2 : 1;
+        if (rest.length <= depth && isFile(rest[rest.length - 1])) return;
+        key = g.base + '/' + rest.slice(0, depth).join('/');
+      } else {
+        const parts = p.split('/');
+        // core/lib holds only Drupal/Component and Drupal/Core plus loose files; list just the files.
+        if (parts[1] === 'lib' && !isFile(parts[parts.length - 1])) return;
+        key = parts.slice(0, parts[1] === 'lib' ? parts.length : 2).join('/');
+      }
+      const k = g.kids.get(key) || { n: 0 };
+      k.n += n; g.kids.set(key, k);
+    });
+    return groups.map(g => ({
+      label: g.label, all: g.base ? { value: g.base, text: `${g.all} (${fmt([...headByPath].reduce((a, [i, n]) => a + (P[i].startsWith(g.base + '/') ? n : 0), 0))})` } : null,
+      opts: [...g.kids].sort((a, b) => a[0].localeCompare(b[0])).map(([value, k]) => ({ value, text: `${g.base ? value.slice(g.base.length + 1) : value} (${fmt(k.n)})` })),
+    })).filter(g => g.opts.length);
+  }
+  const pathSel = document.getElementById('pathSel'), pathText = document.getElementById('pathText');
+  pathSel.innerHTML = '<option value="">All paths</option>' + pathOptions().map(g =>
+    `<optgroup label="${esc(g.label)}">${g.all ? `<option value="${esc(g.all.value)}">${esc(g.all.text)}</option>` : ''}${g.opts.map(o => `<option value="${esc(o.value)}">${esc(o.text)}</option>`).join('')}</optgroup>`).join('');
+
+  function applyFilter() {
+    const prefix = pathSel.value, text = pathText.value.trim().toLowerCase();
+    pm = null;
+    if (prefix || text) {
+      pm = new Uint8Array(P.length);
+      P.forEach((p, i) => {
+        pm[i] = (!prefix || p === prefix || p.startsWith(prefix + '/')) && (!text || p.toLowerCase().includes(text)) ? 1 : 0;
+      });
+    }
+    try {
+      const u = new URL(location.href);
+      prefix ? u.searchParams.set('path', prefix) : u.searchParams.delete('path');
+      text ? u.searchParams.set('q', text) : u.searchParams.delete('q');
+      history.replaceState(null, '', u);
+    } catch (e) {}
+    if (!document.getElementById('detail').hidden) closeDetail();
+    commits = buildView();
+    document.querySelector('#main').closest('.card').querySelector('h2').textContent =
+      pm ? `Violations in the baseline: ${[prefix, text && `contains "${text}"`].filter(Boolean).join(', ')}` : 'Violations in the baseline';
+    renderTiles(); render(); computeIds(); renderIds();
+  }
+  pathSel.onchange = applyFilter;
+  pathText.oninput = applyFilter;
+  {
+    const q = new URLSearchParams(location.search);
+    if (q.has('path')) { pathSel.value = q.get('path'); if (pathSel.value !== q.get('path')) pathSel.add(new Option(q.get('path'), q.get('path'), true, true)); }
+    pathText.value = q.get('q') || '';
+  }
+  applyFilter();
 })();
 </script>
 </body>
